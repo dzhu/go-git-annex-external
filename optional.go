@@ -31,3 +31,16 @@ func (r *remoteRunner) listConfigs() {
 	}
 	r.sendLine("CONFIGEND")
 }
+
+type hasGetCost interface {
+	GetCost(a Annex) int
+}
+
+func (r *remoteRunner) getCost() {
+	h, ok := r.remote.(hasGetCost)
+	if !ok {
+		r.unsupported()
+		return
+	}
+	r.sendLine("COST", h.GetCost(r))
+}

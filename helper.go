@@ -19,6 +19,7 @@ const (
 	// Optional git-annex-initated messages.
 	cmdExtensions  = "EXTENSIONS"
 	cmdListConfigs = "LISTCONFIGS"
+	cmdGetCost     = "GETCOST"
 
 	dirStore    = "STORE"
 	dirRetrieve = "RETRIEVE"
@@ -49,9 +50,27 @@ func Log(format string, args ...interface{}) {
 }
 
 type Annex interface {
-	GetConfig(name string) string
-	SetConfig(name, value string)
 	Progress(bytes int)
+	DirHash(key string) string
+	DirHashLower(key string) string
+	SetConfig(setting, value string)
+	GetConfig(setting string) string
+	SetCreds(setting, user, password string)
+	GetCreds(setting string) string
+	GetUUID() string
+	GetGitDir() string
+	SetWanted(expression string)
+	GetWanted() string
+	SetState(setting, value string)
+	GetState(setting string) string
+	SetURLPresent(key, url string)
+	SetURLMissing(key, url string)
+	SetURIPresent(key, uri string)
+	SetURIMissing(key, uri string)
+	GetURLs(key, prefix string) []string
+	Debug(message string)
+	Info(message string)
+	Error(message string)
 }
 
 type RemoteV1 interface {
@@ -163,11 +182,18 @@ func (r *remoteRunner) procLine(line string) {
 		r.extensions(strings.Split(args[0], " "))
 	case cmdListConfigs:
 		r.listConfigs()
+	case cmdGetCost:
+		r.getCost()
 	}
 }
 
 func (r *remoteRunner) Run() {
 	r.sendLine("VERSION 1")
+	defer func() {
+		if p := recover(); p != nil {
+			r.Error(fmt.Sprintf("failed: %s", p))
+		}
+	}()
 	for line := r.getLine(); line != ""; line = r.getLine() {
 		r.procLine(line)
 	}
