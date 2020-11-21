@@ -9,13 +9,16 @@ import (
 )
 
 const (
+	// Required git-annex-initiated messages.
 	cmdInitRemote   = "INITREMOTE"
 	cmdPrepare      = "PREPARE"
 	cmdTransfer     = "TRANSFER"
 	cmdCheckPresent = "CHECKPRESENT"
 	cmdRemove       = "REMOVE"
 
-	cmdGetConfig = "GETCONFIG"
+	// Optional git-annex-initated messages.
+	cmdExtensions  = "EXTENSIONS"
+	cmdListConfigs = "LISTCONFIGS"
 
 	dirStore    = "STORE"
 	dirRetrieve = "RETRIEVE"
@@ -27,6 +30,8 @@ var argCounts = map[string]int{
 	cmdTransfer:     3,
 	cmdCheckPresent: 1,
 	cmdRemove:       1,
+	cmdExtensions:   1,
+	cmdListConfigs:  0,
 }
 
 var logger io.WriteCloser
@@ -44,7 +49,9 @@ func Log(format string, args ...interface{}) {
 }
 
 type Annex interface {
-	GetConfig(name string) (string, error)
+	GetConfig(name string) string
+	SetConfig(name, value string)
+	Progress(bytes int)
 }
 
 type RemoteV1 interface {
@@ -57,7 +64,7 @@ type RemoteV1 interface {
 }
 
 type Runner interface {
-	Run() error
+	Run()
 }
 
 type remoteRunner struct {
@@ -76,65 +83,23 @@ func NewRemote(input io.Reader, output io.Writer, r RemoteV1) Runner {
 	}
 }
 
-func (r *remoteRunner) getLine() (string, error) {
-	switch {
-	case !r.scanner.Scan():
-		return "", nil
-	case r.scanner.Err() != nil:
-		return "", r.scanner.Err()
-	default:
-		return r.scanner.Text(), nil
-	}
-}
-
-func (r *remoteRunner) sendLine(cmd string, args ...interface{}) error {
-	s := []string{cmd}
-	for _, arg := range args {
-		s = append(s, fmt.Sprintf("%s", arg))
-	}
-	_, err := r.output.Write([]byte(strings.Join(s, " ") + "\n"))
-	return err
-}
-
-func (r *remoteRunner) sendSuccess(cmd string, args ...interface{}) error {
-	return r.sendLine(cmd+"-SUCCESS", args...)
-}
-
-func (r *remoteRunner) sendFailure(cmd string, args ...interface{}) error {
-	return r.sendLine(cmd+"-FAILURE", args...)
-}
-
-func (r *remoteRunner) sendUnknown(cmd string, args ...interface{}) error {
-	return r.sendLine(cmd+"-UNKNOWN", args...)
-}
-
-func (r *remoteRunner) GetConfig(name string) (string, error) {
-	if err := r.sendLine(cmdGetConfig, name); err != nil {
-		return "", err
-	}
-	resp, err := r.getLine()
-	if err != nil {
-		return "", err
-	}
-	Log("getconfig %q -> %q", name, resp)
-	return strings.SplitN(resp, " ", 2)[1], nil
-}
-
-func (r *remoteRunner) init() error {
+func (r *remoteRunner) init() {
 	if err := r.remote.Init(r); err != nil {
-		return r.sendFailure(cmdInitRemote, err)
+		r.sendFailure(cmdInitRemote, err)
+		return
 	}
-	return r.sendSuccess(cmdInitRemote)
+	r.sendSuccess(cmdInitRemote)
 }
 
-func (r *remoteRunner) prepare() error {
+func (r *remoteRunner) prepare() {
 	if err := r.remote.Prepare(r); err != nil {
-		return r.sendFailure(cmdPrepare, err)
+		r.sendFailure(cmdPrepare, err)
+		return
 	}
-	return r.sendSuccess(cmdPrepare)
+	r.sendSuccess(cmdPrepare)
 }
 
-func (r *remoteRunner) transfer(dir, key, file string) error {
+func (r *remoteRunner) transfer(dir, key, file string) {
 	var proc func(Annex, string, string) error
 	switch dir {
 	case dirRetrieve:
@@ -145,36 +110,38 @@ func (r *remoteRunner) transfer(dir, key, file string) error {
 		panic("unknown transfer direction " + dir)
 	}
 	if err := proc(r, key, file); err != nil {
-		return r.sendFailure(cmdTransfer, dir, key, err)
+		r.sendFailure(cmdTransfer, dir, key, err)
+		return
 	}
-	return r.sendSuccess(cmdTransfer, dir, key)
+	r.sendSuccess(cmdTransfer, dir, key)
 }
 
-func (r *remoteRunner) present(key string) error {
+func (r *remoteRunner) present(key string) {
 	switch present, err := r.remote.Present(r, key); {
 	case present:
-		return r.sendSuccess(cmdCheckPresent, key)
+		r.sendSuccess(cmdCheckPresent, key)
 	case err != nil:
-		return r.sendUnknown(cmdCheckPresent, key, err)
+		r.sendUnknown(cmdCheckPresent, key, err)
 	default:
-		return r.sendFailure(cmdCheckPresent, key)
+		r.sendFailure(cmdCheckPresent, key)
 	}
 }
 
-func (r *remoteRunner) remove(key string) error {
+func (r *remoteRunner) remove(key string) {
 	if err := r.remote.Remove(r, key); err != nil {
-		return r.sendFailure(cmdRemove, key, err)
+		r.sendFailure(cmdRemove, key, err)
+		return
 	}
-	return r.sendSuccess(cmdRemove, key)
+	r.sendSuccess(cmdRemove, key)
 }
 
-func (r *remoteRunner) procLine(line string) error {
-	Log("got line %q", line)
+func (r *remoteRunner) procLine(line string) {
 	cmdAndArgs := strings.SplitN(line, " ", 2)
 	cmd := cmdAndArgs[0]
 	argCount, ok := argCounts[cmd]
 	if !ok {
-		return r.sendLine("UNSUPPORTED-REQUEST")
+		r.unsupported()
+		return
 	}
 	argsStr := ""
 	if len(cmdAndArgs) > 1 {
@@ -183,44 +150,30 @@ func (r *remoteRunner) procLine(line string) error {
 	args := strings.SplitN(argsStr, " ", argCount)
 	switch cmd {
 	case cmdInitRemote:
-		return r.init()
+		r.init()
 	case cmdPrepare:
-		return r.prepare()
+		r.prepare()
 	case cmdTransfer:
-		return r.transfer(args[0], args[1], args[2])
+		r.transfer(args[0], args[1], args[2])
 	case cmdCheckPresent:
-		return r.present(args[0])
+		r.present(args[0])
 	case cmdRemove:
-		return r.remove(args[0])
-	}
-	return nil
-}
-
-func (r *remoteRunner) Run() error {
-	if err := r.sendLine("VERSION 1"); err != nil {
-		return err
-	}
-	for {
-
-		switch line, err := r.getLine(); {
-		case err != nil:
-			return err
-		case line == "":
-			return nil
-		default:
-			if err := r.procLine(line); err != nil {
-				Log("proc err: %s", err)
-				return err
-			}
-		}
+		r.remove(args[0])
+	case cmdExtensions:
+		r.extensions(strings.Split(args[0], " "))
+	case cmdListConfigs:
+		r.listConfigs()
 	}
 }
 
-func Run(r RemoteV1) error {
-	helper.Log("================ start")
-	r := helper.NewRemote(os.Stdin, os.Stdout, r)
-	if err := r.Run(); err != nil {
-		fmt.Fprintf(os.Stdout, "failed: %s", err)
-		os.Exit(1)
+func (r *remoteRunner) Run() {
+	r.sendLine("VERSION 1")
+	for line := r.getLine(); line != ""; line = r.getLine() {
+		r.procLine(line)
 	}
+}
+
+func Run(r RemoteV1) {
+	Log("================ starting")
+	NewRemote(os.Stdin, os.Stdout, r).Run()
 }

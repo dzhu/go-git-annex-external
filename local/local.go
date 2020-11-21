@@ -15,7 +15,6 @@ import (
 const rootConfigName = "root"
 
 func copyFile(src, dst string) error {
-	helper.Log("copying %q -> %q", src, dst)
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -37,15 +36,11 @@ type fileRemote struct {
 }
 
 func (f *fileRemote) getPath(key string) string {
-	helper.Log("getPath %q %q -> %q", f.root, key, filepath.Join(f.root, key))
 	return filepath.Join(f.root, key)
 }
 
 func (f *fileRemote) Init(a helper.Annex) error {
-	root, err := a.GetConfig(rootConfigName)
-	if err != nil {
-		return err
-	}
+	root := a.GetConfig(rootConfigName)
 	if root == "" {
 		return errors.New("must provide root directory")
 	}
@@ -53,11 +48,7 @@ func (f *fileRemote) Init(a helper.Annex) error {
 }
 
 func (f *fileRemote) Prepare(a helper.Annex) error {
-	root, err := a.GetConfig(rootConfigName)
-	if err != nil {
-		return err
-	}
-	f.root = root
+	f.root = a.GetConfig(rootConfigName)
 	return nil
 }
 
@@ -78,6 +69,14 @@ func (f *fileRemote) Present(a helper.Annex, key string) (bool, error) {
 	default:
 		return false, err
 	}
+}
+
+func (f *fileRemote) Extensions(a helper.Annex, es []string) []string {
+	return []string{"INFO"}
+}
+
+func (f *fileRemote) ListConfigs(a helper.Annex) [][]string {
+	return [][]string{{"root", "the root directory"}}
 }
 
 func (f *fileRemote) Remove(a helper.Annex, key string) error {
