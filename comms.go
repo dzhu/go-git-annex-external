@@ -20,6 +20,7 @@ func (r *remoteRunner) getLine() string {
 
 func (r *remoteRunner) sendLine(cmd string, args ...interface{}) {
 	line := strings.TrimRight(fmt.Sprintln(append([]interface{}{cmd}, args...)...), "\n")
+	line = strings.ReplaceAll(line, "\n", "\\n")
 	Log("\x1b[32m-> %s\x1b[m", line)
 	if _, err := fmt.Fprintln(r.output, line); err != nil {
 		panic(err)
@@ -134,10 +135,22 @@ func (r *remoteRunner) Debug(message string) {
 	r.sendLine("DEBUG", message)
 }
 
+func (r *remoteRunner) Debugf(format string, args ...interface{}) {
+	r.Debug(fmt.Sprintf(format, args...))
+}
+
 func (r *remoteRunner) Info(message string) {
 	r.sendLine("INFO", message)
 }
 
+func (r *remoteRunner) Infof(format string, args ...interface{}) {
+	r.Info(fmt.Sprintf(format, args...))
+}
+
 func (r *remoteRunner) Error(message string) {
 	r.sendLine("ERROR", message)
+}
+
+func (r *remoteRunner) Errorf(format string, args ...interface{}) {
+	r.Error(fmt.Sprintf(format, args...))
 }

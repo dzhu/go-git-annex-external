@@ -69,8 +69,11 @@ type Annex interface {
 	SetURIMissing(key, uri string)
 	GetURLs(key, prefix string) []string
 	Debug(message string)
+	Debugf(fmt string, args ...interface{})
 	Info(message string)
+	Infof(fmt string, args ...interface{})
 	Error(message string)
+	Errorf(fmt string, args ...interface{})
 }
 
 type RemoteV1 interface {

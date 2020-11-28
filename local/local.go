@@ -49,14 +49,17 @@ func (f *fileRemote) Init(a helper.Annex) error {
 
 func (f *fileRemote) Prepare(a helper.Annex) error {
 	f.root = a.GetConfig(rootConfigName)
+	a.Infof("prepared with root %s", f.root)
 	return nil
 }
 
 func (f *fileRemote) Store(a helper.Annex, key, file string) error {
+	a.Infof("copying %s -> %s", file, f.getPath(key))
 	return copyFile(file, f.getPath(key))
 }
 
 func (f *fileRemote) Retrieve(a helper.Annex, key, file string) error {
+	a.Infof("copying %s -> %s", f.getPath(key), file)
 	return copyFile(f.getPath(key), file)
 }
 
