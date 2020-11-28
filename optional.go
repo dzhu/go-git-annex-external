@@ -6,41 +6,41 @@ type hasExtensions interface {
 	Extensions(a Annex, e []string) []string
 }
 
-func (r *remoteRunner) extensions(e []string) {
-	h, ok := r.remote.(hasExtensions)
+func extensions(a *annexIO, r RemoteV1, e []string) {
+	h, ok := r.(hasExtensions)
 	if !ok {
-		r.unsupported()
+		a.unsupported()
 		return
 	}
-	es := h.Extensions(r, e)
-	r.sendLine(cmdExtensions, strings.Join(es, " "))
+	es := h.Extensions(a, e)
+	a.io.Send(cmdExtensions, strings.Join(es, " "))
 }
 
 type hasListConfigs interface {
 	ListConfigs(a Annex) [][]string
 }
 
-func (r *remoteRunner) listConfigs() {
-	h, ok := r.remote.(hasListConfigs)
+func listConfigs(a *annexIO, r RemoteV1) {
+	h, ok := r.(hasListConfigs)
 	if !ok {
-		r.unsupported()
+		a.unsupported()
 		return
 	}
-	for _, c := range h.ListConfigs(r) {
-		r.sendLine("CONFIG", c[0], c[1])
+	for _, c := range h.ListConfigs(a) {
+		a.io.Send("CONFIG", c[0], c[1])
 	}
-	r.sendLine("CONFIGEND")
+	a.io.Send("CONFIGEND")
 }
 
 type hasGetCost interface {
 	GetCost(a Annex) int
 }
 
-func (r *remoteRunner) getCost() {
-	h, ok := r.remote.(hasGetCost)
+func getCost(a *annexIO, r RemoteV1) {
+	h, ok := r.(hasGetCost)
 	if !ok {
-		r.unsupported()
+		a.unsupported()
 		return
 	}
-	r.sendLine("COST", h.GetCost(r))
+	a.io.Send("COST", h.GetCost(a))
 }

@@ -56,7 +56,7 @@ type Annex interface {
 	SetConfig(setting, value string)
 	GetConfig(setting string) string
 	SetCreds(setting, user, password string)
-	GetCreds(setting string) string
+	GetCreds(setting string) (string, string)
 	GetUUID() string
 	GetGitDir() string
 	SetWanted(expression string)
@@ -85,84 +85,64 @@ type RemoteV1 interface {
 	Remove(a Annex, key string) error
 }
 
-type Runner interface {
-	Run()
-}
-
-type remoteRunner struct {
-	input   io.Reader
-	output  io.Writer
-	scanner *bufio.Scanner
-	remote  RemoteV1
-}
-
-func NewRemote(input io.Reader, output io.Writer, r RemoteV1) Runner {
-	return &remoteRunner{
-		input:   input,
-		output:  output,
-		scanner: bufio.NewScanner(input),
-		remote:  r,
-	}
-}
-
-func (r *remoteRunner) init() {
-	if err := r.remote.Init(r); err != nil {
-		r.sendFailure(cmdInitRemote, err)
+func initialize(a *annexIO, r RemoteV1) {
+	if err := r.Init(a); err != nil {
+		a.sendFailure(cmdInitRemote, err)
 		return
 	}
-	r.sendSuccess(cmdInitRemote)
+	a.sendSuccess(cmdInitRemote)
 }
 
-func (r *remoteRunner) prepare() {
-	if err := r.remote.Prepare(r); err != nil {
-		r.sendFailure(cmdPrepare, err)
+func prepare(a *annexIO, r RemoteV1) {
+	if err := r.Prepare(a); err != nil {
+		a.sendFailure(cmdPrepare, err)
 		return
 	}
-	r.sendSuccess(cmdPrepare)
+	a.sendSuccess(cmdPrepare)
 }
 
-func (r *remoteRunner) transfer(dir, key, file string) {
+func transfer(a *annexIO, r RemoteV1, dir, key, file string) {
 	var proc func(Annex, string, string) error
 	switch dir {
 	case dirRetrieve:
-		proc = r.remote.Retrieve
+		proc = r.Retrieve
 	case dirStore:
-		proc = r.remote.Store
+		proc = r.Store
 	default:
 		panic("unknown transfer direction " + dir)
 	}
-	if err := proc(r, key, file); err != nil {
-		r.sendFailure(cmdTransfer, dir, key, err)
+	if err := proc(a, key, file); err != nil {
+		a.sendFailure(cmdTransfer, dir, key, err)
 		return
 	}
-	r.sendSuccess(cmdTransfer, dir, key)
+	a.sendSuccess(cmdTransfer, dir, key)
 }
 
-func (r *remoteRunner) present(key string) {
-	switch present, err := r.remote.Present(r, key); {
+func present(a *annexIO, r RemoteV1, key string) {
+	switch present, err := r.Present(a, key); {
 	case present:
-		r.sendSuccess(cmdCheckPresent, key)
+		a.sendSuccess(cmdCheckPresent, key)
 	case err != nil:
-		r.sendUnknown(cmdCheckPresent, key, err)
+		a.sendUnknown(cmdCheckPresent, key, err)
 	default:
-		r.sendFailure(cmdCheckPresent, key)
+		a.sendFailure(cmdCheckPresent, key)
 	}
 }
 
-func (r *remoteRunner) remove(key string) {
-	if err := r.remote.Remove(r, key); err != nil {
-		r.sendFailure(cmdRemove, key, err)
+func remove(a *annexIO, r RemoteV1, key string) {
+	if err := r.Remove(a, key); err != nil {
+		a.sendFailure(cmdRemove, key, err)
 		return
 	}
-	r.sendSuccess(cmdRemove, key)
+	a.sendSuccess(cmdRemove, key)
 }
 
-func (r *remoteRunner) procLine(line string) {
+func procLine(a *annexIO, r RemoteV1, line string) {
 	cmdAndArgs := strings.SplitN(line, " ", 2)
 	cmd := cmdAndArgs[0]
 	argCount, ok := argCounts[cmd]
 	if !ok {
-		r.unsupported()
+		a.unsupported()
 		return
 	}
 	argsStr := ""
@@ -172,37 +152,37 @@ func (r *remoteRunner) procLine(line string) {
 	args := strings.SplitN(argsStr, " ", argCount)
 	switch cmd {
 	case cmdInitRemote:
-		r.init()
+		initialize(a, r)
 	case cmdPrepare:
-		r.prepare()
+		prepare(a, r)
 	case cmdTransfer:
-		r.transfer(args[0], args[1], args[2])
+		transfer(a, r, args[0], args[1], args[2])
 	case cmdCheckPresent:
-		r.present(args[0])
+		present(a, r, args[0])
 	case cmdRemove:
-		r.remove(args[0])
+		remove(a, r, args[0])
 	case cmdExtensions:
-		r.extensions(strings.Split(args[0], " "))
+		extensions(a, r, strings.Split(args[0], " "))
 	case cmdListConfigs:
-		r.listConfigs()
+		listConfigs(a, r)
 	case cmdGetCost:
-		r.getCost()
-	}
-}
-
-func (r *remoteRunner) Run() {
-	r.sendLine("VERSION 1")
-	defer func() {
-		if p := recover(); p != nil {
-			r.Error(fmt.Sprintf("failed: %s", p))
-		}
-	}()
-	for line := r.getLine(); line != ""; line = r.getLine() {
-		r.procLine(line)
+		getCost(a, r)
 	}
 }
 
 func Run(r RemoteV1) {
-	Log("================ starting")
-	NewRemote(os.Stdin, os.Stdout, r).Run()
+	lines := &rawLineIO{
+		w: os.Stdout,
+		s: bufio.NewScanner(os.Stdin),
+	}
+	a := &annexIO{io: lines}
+	lines.Send("VERSION 1")
+	defer func() {
+		if p := recover(); p != nil {
+			a.Error(fmt.Sprintf("failed: %s", p))
+		}
+	}()
+	for line := lines.Recv(); line != ""; line = lines.Recv() {
+		procLine(a, r, line)
+	}
 }

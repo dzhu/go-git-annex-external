@@ -1,47 +1,63 @@
 package helper
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
 
-func (r *remoteRunner) getLine() string {
-	switch {
-	case !r.scanner.Scan():
-		return ""
-	case r.scanner.Err() != nil:
-		panic(r.scanner.Err())
-	default:
-		Log("\x1b[34m<- %s\x1b[m", r.scanner.Text())
-		return r.scanner.Text()
-	}
+type lineIO interface {
+	Send(cmd string, args ...interface{})
+	Recv() string
 }
 
-func (r *remoteRunner) sendLine(cmd string, args ...interface{}) {
+type rawLineIO struct {
+	w io.Writer
+	s *bufio.Scanner
+}
+
+func (r *rawLineIO) Send(cmd string, args ...interface{}) {
 	line := strings.TrimRight(fmt.Sprintln(append([]interface{}{cmd}, args...)...), "\n")
 	line = strings.ReplaceAll(line, "\n", "\\n")
 	Log("\x1b[32m-> %s\x1b[m", line)
-	if _, err := fmt.Fprintln(r.output, line); err != nil {
+	if _, err := fmt.Fprintln(r.w, line); err != nil {
 		panic(err)
 	}
 }
 
-func (r *remoteRunner) sendSuccess(cmd string, args ...interface{}) {
-	r.sendLine(cmd+"-SUCCESS", args...)
+func (r *rawLineIO) Recv() string {
+	switch {
+	case !r.s.Scan():
+		return ""
+	case r.s.Err() != nil:
+		panic(r.s.Err())
+	default:
+		Log("\x1b[34m<- %s\x1b[m", r.s.Text())
+		return r.s.Text()
+	}
 }
 
-func (r *remoteRunner) sendFailure(cmd string, args ...interface{}) {
-	r.sendLine(cmd+"-FAILURE", args...)
+type annexIO struct {
+	io lineIO
 }
 
-func (r *remoteRunner) sendUnknown(cmd string, args ...interface{}) {
-	r.sendLine(cmd+"-UNKNOWN", args...)
+func (a *annexIO) sendSuccess(cmd string, args ...interface{}) {
+	a.io.Send(cmd+"-SUCCESS", args...)
 }
 
-func (r *remoteRunner) ask(cmd string, args ...interface{}) string {
-	r.sendLine(cmd, args...)
-	resp := r.getLine()
+func (a *annexIO) sendFailure(cmd string, args ...interface{}) {
+	a.io.Send(cmd+"-FAILURE", args...)
+}
+
+func (a *annexIO) sendUnknown(cmd string, args ...interface{}) {
+	a.io.Send(cmd+"-UNKNOWN", args...)
+}
+
+func (a *annexIO) ask(cmd string, args ...interface{}) string {
+	a.io.Send(cmd, args...)
+	resp := a.io.Recv()
 	sp := strings.SplitN(resp, " ", 2)
 	if sp[0] != "VALUE" {
 		panic(fmt.Sprintf("got %s rather than VALUE in response", sp[0]))
@@ -49,37 +65,37 @@ func (r *remoteRunner) ask(cmd string, args ...interface{}) string {
 	return sp[1]
 }
 
-func (r *remoteRunner) unsupported() {
-	r.sendLine("UNSUPPORTED-REQUEST")
+func (a *annexIO) unsupported() {
+	a.io.Send("UNSUPPORTED-REQUEST")
 }
 
-func (r *remoteRunner) Progress(bytes int) {
-	r.sendLine("PROGRESS", strconv.Itoa(bytes))
+func (a *annexIO) Progress(bytes int) {
+	a.io.Send("PROGRESS", strconv.Itoa(bytes))
 }
 
-func (r *remoteRunner) DirHash(key string) string {
-	return r.ask("DIRHASH", key)
+func (a *annexIO) DirHash(key string) string {
+	return a.ask("DIRHASH", key)
 }
 
-func (r *remoteRunner) DirHashLower(key string) string {
-	return r.ask("DIRHASH-LOWER", key)
+func (a *annexIO) DirHashLower(key string) string {
+	return a.ask("DIRHASH-LOWER", key)
 }
 
-func (r *remoteRunner) SetConfig(setting, value string) {
-	r.sendLine("SETCONFIG", setting, value)
+func (a *annexIO) SetConfig(setting, value string) {
+	a.io.Send("SETCONFIG", setting, value)
 }
 
-func (r *remoteRunner) GetConfig(setting string) string {
-	return r.ask("GETCONFIG", setting)
+func (a *annexIO) GetConfig(setting string) string {
+	return a.ask("GETCONFIG", setting)
 }
 
-func (r *remoteRunner) SetCreds(setting, user, password string) {
-	r.sendLine("SETCREDS", setting, user, password)
+func (a *annexIO) SetCreds(setting, user, password string) {
+	a.io.Send("SETCREDS", setting, user, password)
 }
 
-func (r *remoteRunner) GetCreds(setting string) (string, string) {
-	r.sendLine("GETCREDS", setting)
-	resp := r.getLine()
+func (a *annexIO) GetCreds(setting string) (string, string) {
+	a.io.Send("GETCREDS", setting)
+	resp := a.io.Recv()
 	sp := strings.SplitN(resp, " ", 3)
 	if sp[0] != "CREDS" {
 		panic(fmt.Sprintf("got %s rather than CREDS in response", sp[0]))
@@ -87,75 +103,75 @@ func (r *remoteRunner) GetCreds(setting string) (string, string) {
 	return sp[1], sp[2]
 }
 
-func (r *remoteRunner) GetUUID() string {
-	return r.ask("GETUUID")
+func (a *annexIO) GetUUID() string {
+	return a.ask("GETUUID")
 }
 
-func (r *remoteRunner) GetGitDir() string {
-	return r.ask("GETGITDIR")
+func (a *annexIO) GetGitDir() string {
+	return a.ask("GETGITDIR")
 }
 
-func (r *remoteRunner) SetWanted(expression string) {
-	r.sendLine("SETWANTED", expression)
+func (a *annexIO) SetWanted(expression string) {
+	a.io.Send("SETWANTED", expression)
 }
 
-func (r *remoteRunner) GetWanted() string {
-	return r.ask("GETWANTED")
+func (a *annexIO) GetWanted() string {
+	return a.ask("GETWANTED")
 }
 
-func (r *remoteRunner) SetState(setting, value string) {
-	r.sendLine("SETSTATE", setting, value)
+func (a *annexIO) SetState(setting, value string) {
+	a.io.Send("SETSTATE", setting, value)
 }
 
-func (r *remoteRunner) GetState(setting string) string {
-	return r.ask("GETSTATE", setting)
+func (a *annexIO) GetState(setting string) string {
+	return a.ask("GETSTATE", setting)
 }
 
-func (r *remoteRunner) SetURLPresent(key, url string) {
-	r.sendLine("SETURLPRESENT", key, url)
+func (a *annexIO) SetURLPresent(key, url string) {
+	a.io.Send("SETURLPRESENT", key, url)
 }
 
-func (r *remoteRunner) SetURLMissing(key, url string) {
-	r.sendLine("SETURLMISSING", key, url)
+func (a *annexIO) SetURLMissing(key, url string) {
+	a.io.Send("SETURLMISSING", key, url)
 }
 
-func (r *remoteRunner) SetURIPresent(key, uri string) {
-	r.sendLine("SETURIPRESENT", key, uri)
+func (a *annexIO) SetURIPresent(key, uri string) {
+	a.io.Send("SETURIPRESENT", key, uri)
 }
 
-func (r *remoteRunner) SetURIMissing(key, uri string) {
-	r.sendLine("SETURIMISSING", key, uri)
+func (a *annexIO) SetURIMissing(key, uri string) {
+	a.io.Send("SETURIMISSING", key, uri)
 }
 
-func (r *remoteRunner) GetURLs(key, prefix string) []string {
-	r.sendLine("GETURLS", key, prefix)
+func (a *annexIO) GetURLs(key, prefix string) []string {
+	a.io.Send("GETURLS", key, prefix)
 	var urls []string
-	for line := r.getLine(); line != "VALUE "; line = r.getLine() {
+	for line := a.io.Recv(); line != "VALUE "; line = a.io.Recv() {
 		urls = append(urls, strings.SplitN(line, " ", 2)[1])
 	}
 	return urls
 }
 
-func (r *remoteRunner) Debug(message string) {
-	r.sendLine("DEBUG", message)
+func (a *annexIO) Debug(message string) {
+	a.io.Send("DEBUG", message)
 }
 
-func (r *remoteRunner) Debugf(format string, args ...interface{}) {
-	r.Debug(fmt.Sprintf(format, args...))
+func (a *annexIO) Debugf(format string, args ...interface{}) {
+	a.Debug(fmt.Sprintf(format, args...))
 }
 
-func (r *remoteRunner) Info(message string) {
-	r.sendLine("INFO", message)
+func (a *annexIO) Info(message string) {
+	a.io.Send("INFO", message)
 }
 
-func (r *remoteRunner) Infof(format string, args ...interface{}) {
-	r.Info(fmt.Sprintf(format, args...))
+func (a *annexIO) Infof(format string, args ...interface{}) {
+	a.Info(fmt.Sprintf(format, args...))
 }
 
-func (r *remoteRunner) Error(message string) {
-	r.sendLine("ERROR", message)
+func (a *annexIO) Error(message string) {
+	a.io.Send("ERROR", message)
 }
 
-func (r *remoteRunner) Errorf(format string, args ...interface{}) {
-	r.Error(fmt.Sprintf(format, args...))
+func (a *annexIO) Errorf(format string, args ...interface{}) {
+	a.Error(fmt.Sprintf(format, args...))
 }
