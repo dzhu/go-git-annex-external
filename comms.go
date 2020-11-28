@@ -77,9 +77,14 @@ func (r *remoteRunner) SetCreds(setting, user, password string) {
 	r.sendLine("SETCREDS", setting, user, password)
 }
 
-func (r *remoteRunner) GetCreds(setting string) string {
-	// TODO
-	return ""
+func (r *remoteRunner) GetCreds(setting string) (string, string) {
+	r.sendLine("GETCREDS", setting)
+	resp := r.getLine()
+	sp := strings.SplitN(resp, " ", 3)
+	if sp[0] != "CREDS" {
+		panic(fmt.Sprintf("got %s rather than CREDS in response", sp[0]))
+	}
+	return sp[1], sp[2]
 }
 
 func (r *remoteRunner) GetUUID() string {
