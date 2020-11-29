@@ -1,3 +1,13 @@
+// Package helper implements the git-annex external special remote protocol. It can be used to
+// create an external special remote without detailed knowledge of the git-annex wire protocol. It
+// supports the ASYNC and INFO protocol extensions.
+//
+// For basic functionality, define a type implementing the RemoteV1 interface and pass an instance
+// of it to the Run function. Optional messages in the protocol may be supported by having the type
+// additionally implement the "Has*" interfaces.
+//
+// See https://git-annex.branchable.com/design/external_special_remote_protocol/ for further
+// information regarding the underlying protocol and the semantics of its operations.
 package helper
 
 import (
@@ -50,6 +60,7 @@ func Log(format string, args ...interface{}) {
 	fmt.Fprintf(logger, format+"\n", args...)
 }
 
+// Annex allows external special remote implementations to send requests to git-annex.
 type Annex interface {
 	Progress(bytes int)
 	DirHash(key string) string
@@ -77,12 +88,22 @@ type Annex interface {
 	Errorf(fmt string, args ...interface{})
 }
 
+// RemoteV1 is the core interface that external special remote implementations must satisfy.
 type RemoteV1 interface {
+	// Init performs one-time setup tasks required to use the remote. It is not called every time
+	// git-annex interacts with the remote, but it may be called multiple times when the remote is
+	// enabled in different repositories or when a configuration value is changed.
 	Init(a Annex) error
+	// Prepare prepares the remote to be used. It is called once each time the remote is run, before
+	// any other methods that involve manipulating data in the remote.
 	Prepare(a Annex) error
+	// Store associates the content of the given file with the given key in the remote.
 	Store(a Annex, key, file string) error
+	// Retrieve places the content of the given key into the given file.
 	Retrieve(a Annex, key, file string) error
+	// Present checks whether the remote contains the data for the given key.
 	Present(a Annex, key string) (bool, error)
+	// Remove removes the content of the given key from the remote.
 	Remove(a Annex, key string) error
 }
 
@@ -187,6 +208,7 @@ func runJob(lines lineIO, r RemoteV1) {
 	}
 }
 
+// RunWithStreams executes an external special remote with the provided input and output streams.
 func RunWithStreams(input io.Reader, output io.Writer, r RemoteV1) {
 	lines := &rawLineIO{
 		w: output,
@@ -225,6 +247,8 @@ func RunWithStreams(input io.Reader, output io.Writer, r RemoteV1) {
 	}
 }
 
+// Run executes an external special remote as git-annex expects, reading from stdin and writing to
+// stdout.
 func Run(r RemoteV1) {
 	RunWithStreams(os.Stdin, os.Stdout, r)
 }
