@@ -13,15 +13,18 @@ type lineIO interface {
 	Recv() string
 }
 
+func fmtLine(cmd string, args ...interface{}) string {
+	line := strings.TrimRight(fmt.Sprintln(append([]interface{}{cmd}, args...)...), "\n")
+	return strings.ReplaceAll(line, "\n", "\\n")
+}
+
 type rawLineIO struct {
 	w io.Writer
 	s *bufio.Scanner
 }
 
 func (r *rawLineIO) Send(cmd string, args ...interface{}) {
-	line := strings.TrimRight(fmt.Sprintln(append([]interface{}{cmd}, args...)...), "\n")
-	line = strings.ReplaceAll(line, "\n", "\\n")
-	Log("\x1b[32m-> %s\x1b[m", line)
+	line := fmtLine(cmd, args...)
 	if _, err := fmt.Fprintln(r.w, line); err != nil {
 		panic(err)
 	}
@@ -34,9 +37,39 @@ func (r *rawLineIO) Recv() string {
 	case r.s.Err() != nil:
 		panic(r.s.Err())
 	default:
-		Log("\x1b[34m<- %s\x1b[m", r.s.Text())
 		return r.s.Text()
 	}
+}
+
+type jobLineIO struct {
+	input  <-chan string
+	num    int
+	output chan<- string
+}
+
+func (j *jobLineIO) needsJobPrefix() bool {
+	return j.num != 0
+}
+
+func (j *jobLineIO) Send(cmd string, args ...interface{}) {
+	if cmd != "ERROR" && j.needsJobPrefix() {
+		args = append([]interface{}{j.num, cmd}, args...)
+		cmd = "J"
+	}
+	j.output <- fmtLine(cmd, args...)
+}
+
+func (j *jobLineIO) Recv() string {
+	line := <-j.input
+	if line == "" || !j.needsJobPrefix() {
+		return line
+	}
+	prefix := fmt.Sprintf("J %d ", j.num)
+	rest := strings.TrimPrefix(line, prefix)
+	if line == rest {
+		panic(fmt.Sprintf("received line %q without correct prefix %q", line, prefix))
+	}
+	return rest
 }
 
 type annexIO struct {

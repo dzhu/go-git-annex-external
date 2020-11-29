@@ -75,7 +75,7 @@ func (f *fileRemote) Present(a helper.Annex, key string) (bool, error) {
 }
 
 func (f *fileRemote) Extensions(a helper.Annex, es []string) []string {
-	return []string{"INFO"}
+	return []string{"INFO", "ASYNC"}
 }
 
 func (f *fileRemote) ListConfigs(a helper.Annex) [][]string {

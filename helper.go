@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -170,10 +171,26 @@ func procLine(a *annexIO, r RemoteV1, line string) {
 	}
 }
 
-func Run(r RemoteV1) {
+func getJobNum(line string) int {
+	split := strings.SplitN(line, " ", 3)
+	if split[0] != "J" {
+		return 0
+	}
+	jobNum, _ := strconv.Atoi(split[1])
+	return jobNum
+}
+
+func runJob(lines lineIO, r RemoteV1) {
+	a := &annexIO{lines}
+	for line := lines.Recv(); line != ""; line = lines.Recv() {
+		procLine(a, r, line)
+	}
+}
+
+func RunWithStreams(input io.Reader, output io.Writer, r RemoteV1) {
 	lines := &rawLineIO{
-		w: os.Stdout,
-		s: bufio.NewScanner(os.Stdin),
+		w: output,
+		s: bufio.NewScanner(input),
 	}
 	a := &annexIO{io: lines}
 	lines.Send("VERSION 1")
@@ -182,7 +199,32 @@ func Run(r RemoteV1) {
 			a.Error(fmt.Sprintf("failed: %s", p))
 		}
 	}()
+
+	outLines := make(chan string)
+
+	go func() {
+		for l := range outLines {
+			Log("\x1b[32m[%8d] -> %s\x1b[m", os.Getpid(), l)
+			lines.Send(l)
+		}
+	}()
+
+	inChans := make(map[int]chan string)
+
 	for line := lines.Recv(); line != ""; line = lines.Recv() {
-		procLine(a, r, line)
+		Log("\x1b[34m[%8d] <- %s\x1b[m", os.Getpid(), line)
+
+		jobNum := getJobNum(line)
+		ch, ok := inChans[jobNum]
+		if !ok {
+			ch = make(chan string)
+			inChans[jobNum] = ch
+			go runJob(&jobLineIO{ch, jobNum, outLines}, r)
+		}
+		ch <- line
 	}
+}
+
+func Run(r RemoteV1) {
+	RunWithStreams(os.Stdin, os.Stdout, r)
 }
