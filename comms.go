@@ -76,20 +76,24 @@ type annexIO struct {
 	io lineIO
 }
 
+func (a *annexIO) send(cmd string, args ...interface{}) {
+	a.io.Send(cmd, args...)
+}
+
 func (a *annexIO) sendSuccess(cmd string, args ...interface{}) {
-	a.io.Send(cmd+"-SUCCESS", args...)
+	a.send(cmd+"-SUCCESS", args...)
 }
 
 func (a *annexIO) sendFailure(cmd string, args ...interface{}) {
-	a.io.Send(cmd+"-FAILURE", args...)
+	a.send(cmd+"-FAILURE", args...)
 }
 
 func (a *annexIO) sendUnknown(cmd string, args ...interface{}) {
-	a.io.Send(cmd+"-UNKNOWN", args...)
+	a.send(cmd+"-UNKNOWN", args...)
 }
 
 func (a *annexIO) ask(cmd string, args ...interface{}) string {
-	a.io.Send(cmd, args...)
+	a.send(cmd, args...)
 	resp := a.io.Recv()
 	sp := strings.SplitN(resp, " ", 2)
 	if sp[0] != "VALUE" {
@@ -99,11 +103,11 @@ func (a *annexIO) ask(cmd string, args ...interface{}) string {
 }
 
 func (a *annexIO) unsupported() {
-	a.io.Send("UNSUPPORTED-REQUEST")
+	a.send("UNSUPPORTED-REQUEST")
 }
 
 func (a *annexIO) Progress(bytes int) {
-	a.io.Send("PROGRESS", strconv.Itoa(bytes))
+	a.send("PROGRESS", strconv.Itoa(bytes))
 }
 
 func (a *annexIO) DirHash(key string) string {
@@ -115,7 +119,7 @@ func (a *annexIO) DirHashLower(key string) string {
 }
 
 func (a *annexIO) SetConfig(setting, value string) {
-	a.io.Send("SETCONFIG", setting, value)
+	a.send("SETCONFIG", setting, value)
 }
 
 func (a *annexIO) GetConfig(setting string) string {
@@ -123,11 +127,11 @@ func (a *annexIO) GetConfig(setting string) string {
 }
 
 func (a *annexIO) SetCreds(setting, user, password string) {
-	a.io.Send("SETCREDS", setting, user, password)
+	a.send("SETCREDS", setting, user, password)
 }
 
 func (a *annexIO) GetCreds(setting string) (string, string) {
-	a.io.Send("GETCREDS", setting)
+	a.send("GETCREDS", setting)
 	resp := a.io.Recv()
 	sp := strings.SplitN(resp, " ", 3)
 	if sp[0] != "CREDS" {
@@ -145,7 +149,7 @@ func (a *annexIO) GetGitDir() string {
 }
 
 func (a *annexIO) SetWanted(expression string) {
-	a.io.Send("SETWANTED", expression)
+	a.send("SETWANTED", expression)
 }
 
 func (a *annexIO) GetWanted() string {
@@ -153,7 +157,7 @@ func (a *annexIO) GetWanted() string {
 }
 
 func (a *annexIO) SetState(setting, value string) {
-	a.io.Send("SETSTATE", setting, value)
+	a.send("SETSTATE", setting, value)
 }
 
 func (a *annexIO) GetState(setting string) string {
@@ -161,23 +165,23 @@ func (a *annexIO) GetState(setting string) string {
 }
 
 func (a *annexIO) SetURLPresent(key, url string) {
-	a.io.Send("SETURLPRESENT", key, url)
+	a.send("SETURLPRESENT", key, url)
 }
 
 func (a *annexIO) SetURLMissing(key, url string) {
-	a.io.Send("SETURLMISSING", key, url)
+	a.send("SETURLMISSING", key, url)
 }
 
 func (a *annexIO) SetURIPresent(key, uri string) {
-	a.io.Send("SETURIPRESENT", key, uri)
+	a.send("SETURIPRESENT", key, uri)
 }
 
 func (a *annexIO) SetURIMissing(key, uri string) {
-	a.io.Send("SETURIMISSING", key, uri)
+	a.send("SETURIMISSING", key, uri)
 }
 
 func (a *annexIO) GetURLs(key, prefix string) []string {
-	a.io.Send("GETURLS", key, prefix)
+	a.send("GETURLS", key, prefix)
 	var urls []string
 	for line := a.io.Recv(); line != "VALUE "; line = a.io.Recv() {
 		urls = append(urls, strings.SplitN(line, " ", 2)[1])
@@ -186,7 +190,7 @@ func (a *annexIO) GetURLs(key, prefix string) []string {
 }
 
 func (a *annexIO) Debug(message string) {
-	a.io.Send("DEBUG", message)
+	a.send("DEBUG", message)
 }
 
 func (a *annexIO) Debugf(format string, args ...interface{}) {
@@ -194,7 +198,7 @@ func (a *annexIO) Debugf(format string, args ...interface{}) {
 }
 
 func (a *annexIO) Info(message string) {
-	a.io.Send("INFO", message)
+	a.send("INFO", message)
 }
 
 func (a *annexIO) Infof(format string, args ...interface{}) {
@@ -202,7 +206,7 @@ func (a *annexIO) Infof(format string, args ...interface{}) {
 }
 
 func (a *annexIO) Error(message string) {
-	a.io.Send("ERROR", message)
+	a.send("ERROR", message)
 }
 
 func (a *annexIO) Errorf(format string, args ...interface{}) {

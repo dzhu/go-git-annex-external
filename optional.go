@@ -13,7 +13,7 @@ func extensions(a *annexIO, r RemoteV1, e []string) {
 		return
 	}
 	es := h.Extensions(a, e)
-	a.io.Send(cmdExtensions, strings.Join(es, " "))
+	a.send(cmdExtensions, strings.Join(es, " "))
 }
 
 type hasListConfigs interface {
@@ -27,9 +27,9 @@ func listConfigs(a *annexIO, r RemoteV1) {
 		return
 	}
 	for _, c := range h.ListConfigs(a) {
-		a.io.Send("CONFIG", c[0], c[1])
+		a.send("CONFIG", c[0], c[1])
 	}
-	a.io.Send("CONFIGEND")
+	a.send("CONFIGEND")
 }
 
 type hasGetCost interface {
@@ -42,5 +42,5 @@ func getCost(a *annexIO, r RemoteV1) {
 		a.unsupported()
 		return
 	}
-	a.io.Send("COST", h.GetCost(a))
+	a.send("COST", h.GetCost(a))
 }
