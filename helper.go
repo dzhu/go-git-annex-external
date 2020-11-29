@@ -28,22 +28,33 @@ const (
 	cmdRemove       = "REMOVE"
 
 	// Optional git-annex-initated messages.
-	cmdExtensions  = "EXTENSIONS"
-	cmdListConfigs = "LISTCONFIGS"
-	cmdGetCost     = "GETCOST"
+	cmdExtensions      = "EXTENSIONS"
+	cmdListConfigs     = "LISTCONFIGS"
+	cmdGetCost         = "GETCOST"
+	cmdGetAvailability = "GETAVAILABILITY"
+	cmdClaimURL        = "CLAIMURL"
+	cmdCheckURL        = "CHECKURL"
+	cmdWhereIs         = "WHEREIS"
+	cmdGetInfo         = "GETINFO"
 
 	dirStore    = "STORE"
 	dirRetrieve = "RETRIEVE"
 )
 
 var argCounts = map[string]int{
-	cmdInitRemote:   0,
-	cmdPrepare:      0,
-	cmdTransfer:     3,
-	cmdCheckPresent: 1,
-	cmdRemove:       1,
-	cmdExtensions:   1,
-	cmdListConfigs:  0,
+	cmdInitRemote:      0,
+	cmdPrepare:         0,
+	cmdTransfer:        3,
+	cmdCheckPresent:    1,
+	cmdRemove:          1,
+	cmdExtensions:      1,
+	cmdListConfigs:     0,
+	cmdGetCost:         0,
+	cmdGetAvailability: 0,
+	cmdClaimURL:        1,
+	cmdCheckURL:        1,
+	cmdWhereIs:         1,
+	cmdGetInfo:         0,
 }
 
 var logger io.WriteCloser
@@ -189,6 +200,16 @@ func procLine(a *annexIO, r RemoteV1, line string) {
 		listConfigs(a, r)
 	case cmdGetCost:
 		getCost(a, r)
+	case cmdGetAvailability:
+		getAvailability(a, r)
+	case cmdClaimURL:
+		claimURL(a, r, args[0])
+	case cmdCheckURL:
+		checkURL(a, r, args[0])
+	case cmdWhereIs:
+		whereIs(a, r, args[0])
+	case cmdGetInfo:
+		getInfo(a, r)
 	}
 }
 

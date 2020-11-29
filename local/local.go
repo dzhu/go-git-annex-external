@@ -78,8 +78,10 @@ func (f *fileRemote) Extensions(a helper.Annex, es []string) []string {
 	return []string{"INFO", "ASYNC"}
 }
 
-func (f *fileRemote) ListConfigs(a helper.Annex) [][]string {
-	return [][]string{{"root", "the root directory"}}
+func (f *fileRemote) ListConfigs(a helper.Annex) []helper.ConfigSetting {
+	return []helper.ConfigSetting{
+		{Name: "root", Description: "the root directory"},
+	}
 }
 
 func (f *fileRemote) Remove(a helper.Annex, key string) error {
