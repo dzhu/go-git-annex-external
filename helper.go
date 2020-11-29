@@ -41,20 +41,25 @@ const (
 	dirRetrieve = "RETRIEVE"
 )
 
-var argCounts = map[string]int{
-	cmdInitRemote:      0,
-	cmdPrepare:         0,
-	cmdTransfer:        3,
-	cmdCheckPresent:    1,
-	cmdRemove:          1,
-	cmdExtensions:      1,
-	cmdListConfigs:     0,
-	cmdGetCost:         0,
-	cmdGetAvailability: 0,
-	cmdClaimURL:        1,
-	cmdCheckURL:        1,
-	cmdWhereIs:         1,
-	cmdGetInfo:         0,
+type commandSpec struct {
+	argCount int
+	response func(a *annexIO, r RemoteV1, args []string)
+}
+
+var commandSpecs = map[string]commandSpec{
+	cmdInitRemote:      {0, func(a *annexIO, r RemoteV1, args []string) { initialize(a, r) }},
+	cmdPrepare:         {0, func(a *annexIO, r RemoteV1, args []string) { prepare(a, r) }},
+	cmdTransfer:        {3, func(a *annexIO, r RemoteV1, args []string) { transfer(a, r, args[0], args[1], args[2]) }},
+	cmdCheckPresent:    {1, func(a *annexIO, r RemoteV1, args []string) { present(a, r, args[0]) }},
+	cmdRemove:          {1, func(a *annexIO, r RemoteV1, args []string) { remove(a, r, args[0]) }},
+	cmdExtensions:      {1, func(a *annexIO, r RemoteV1, args []string) { extensions(a, r, strings.Split(args[0], " ")) }},
+	cmdListConfigs:     {0, func(a *annexIO, r RemoteV1, args []string) { listConfigs(a, r) }},
+	cmdGetCost:         {0, func(a *annexIO, r RemoteV1, args []string) { getCost(a, r) }},
+	cmdGetAvailability: {0, func(a *annexIO, r RemoteV1, args []string) { getAvailability(a, r) }},
+	cmdClaimURL:        {1, func(a *annexIO, r RemoteV1, args []string) { claimURL(a, r, args[0]) }},
+	cmdCheckURL:        {1, func(a *annexIO, r RemoteV1, args []string) { checkURL(a, r, args[0]) }},
+	cmdWhereIs:         {1, func(a *annexIO, r RemoteV1, args []string) { whereIs(a, r, args[0]) }},
+	cmdGetInfo:         {0, func(a *annexIO, r RemoteV1, args []string) { getInfo(a, r) }},
 }
 
 var logger io.WriteCloser
@@ -173,7 +178,8 @@ func remove(a *annexIO, r RemoteV1, key string) {
 func procLine(a *annexIO, r RemoteV1, line string) {
 	cmdAndArgs := strings.SplitN(line, " ", 2)
 	cmd := cmdAndArgs[0]
-	argCount, ok := argCounts[cmd]
+
+	spec, ok := commandSpecs[cmd]
 	if !ok {
 		a.unsupported()
 		return
@@ -182,35 +188,8 @@ func procLine(a *annexIO, r RemoteV1, line string) {
 	if len(cmdAndArgs) > 1 {
 		argsStr = cmdAndArgs[1]
 	}
-	args := strings.SplitN(argsStr, " ", argCount)
-	switch cmd {
-	case cmdInitRemote:
-		initialize(a, r)
-	case cmdPrepare:
-		prepare(a, r)
-	case cmdTransfer:
-		transfer(a, r, args[0], args[1], args[2])
-	case cmdCheckPresent:
-		present(a, r, args[0])
-	case cmdRemove:
-		remove(a, r, args[0])
-	case cmdExtensions:
-		extensions(a, r, strings.Split(args[0], " "))
-	case cmdListConfigs:
-		listConfigs(a, r)
-	case cmdGetCost:
-		getCost(a, r)
-	case cmdGetAvailability:
-		getAvailability(a, r)
-	case cmdClaimURL:
-		claimURL(a, r, args[0])
-	case cmdCheckURL:
-		checkURL(a, r, args[0])
-	case cmdWhereIs:
-		whereIs(a, r, args[0])
-	case cmdGetInfo:
-		getInfo(a, r)
-	}
+	args := strings.SplitN(argsStr, " ", spec.argCount)
+	spec.response(a, r, args)
 }
 
 func getJobNum(line string) int {
