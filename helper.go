@@ -46,20 +46,40 @@ type commandSpec struct {
 	response func(a *annexIO, r RemoteV1, args []string)
 }
 
+func response0(f func(a *annexIO, r RemoteV1)) commandSpec {
+	return commandSpec{0, func(a *annexIO, r RemoteV1, args []string) { f(a, r) }}
+}
+
+func response1(f func(a *annexIO, r RemoteV1, s string)) commandSpec {
+	return commandSpec{1, func(a *annexIO, r RemoteV1, args []string) { f(a, r, args[0]) }}
+}
+
+func response3(f func(a *annexIO, r RemoteV1, s1, s2, s3 string)) commandSpec {
+	return commandSpec{
+		3, func(a *annexIO, r RemoteV1, args []string) { f(a, r, args[0], args[1], args[2]) },
+	}
+}
+
+func responseSplit(f func(a *annexIO, r RemoteV1, s []string)) commandSpec {
+	return commandSpec{
+		1, func(a *annexIO, r RemoteV1, args []string) { f(a, r, strings.Split(args[0], " ")) },
+	}
+}
+
 var commandSpecs = map[string]commandSpec{
-	cmdInitRemote:      {0, func(a *annexIO, r RemoteV1, args []string) { initialize(a, r) }},
-	cmdPrepare:         {0, func(a *annexIO, r RemoteV1, args []string) { prepare(a, r) }},
-	cmdTransfer:        {3, func(a *annexIO, r RemoteV1, args []string) { transfer(a, r, args[0], args[1], args[2]) }},
-	cmdCheckPresent:    {1, func(a *annexIO, r RemoteV1, args []string) { present(a, r, args[0]) }},
-	cmdRemove:          {1, func(a *annexIO, r RemoteV1, args []string) { remove(a, r, args[0]) }},
-	cmdExtensions:      {1, func(a *annexIO, r RemoteV1, args []string) { extensions(a, r, strings.Split(args[0], " ")) }},
-	cmdListConfigs:     {0, func(a *annexIO, r RemoteV1, args []string) { listConfigs(a, r) }},
-	cmdGetCost:         {0, func(a *annexIO, r RemoteV1, args []string) { getCost(a, r) }},
-	cmdGetAvailability: {0, func(a *annexIO, r RemoteV1, args []string) { getAvailability(a, r) }},
-	cmdClaimURL:        {1, func(a *annexIO, r RemoteV1, args []string) { claimURL(a, r, args[0]) }},
-	cmdCheckURL:        {1, func(a *annexIO, r RemoteV1, args []string) { checkURL(a, r, args[0]) }},
-	cmdWhereIs:         {1, func(a *annexIO, r RemoteV1, args []string) { whereIs(a, r, args[0]) }},
-	cmdGetInfo:         {0, func(a *annexIO, r RemoteV1, args []string) { getInfo(a, r) }},
+	cmdInitRemote:      response0(initialize),
+	cmdPrepare:         response0(prepare),
+	cmdTransfer:        response3(transfer),
+	cmdCheckPresent:    response1(present),
+	cmdRemove:          response1(remove),
+	cmdExtensions:      responseSplit(extensions),
+	cmdListConfigs:     response0(listConfigs),
+	cmdGetCost:         response0(getCost),
+	cmdGetAvailability: response0(getAvailability),
+	cmdClaimURL:        response1(claimURL),
+	cmdCheckURL:        response1(checkURL),
+	cmdWhereIs:         response1(whereIs),
+	cmdGetInfo:         response0(getInfo),
 }
 
 var logger io.WriteCloser
