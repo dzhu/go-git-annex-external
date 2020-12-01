@@ -74,6 +74,14 @@ func (f *fileRemote) Present(a helper.Annex, key string) (bool, error) {
 	}
 }
 
+func (f *fileRemote) Remove(a helper.Annex, key string) error {
+	err := os.Remove(f.getPath(key))
+	if errors.Is(err, os.ErrNotExist) {
+		err = nil
+	}
+	return err
+}
+
 func (f *fileRemote) Extensions(a helper.Annex, es []string) []string {
 	return []string{"INFO", "ASYNC"}
 }
@@ -84,13 +92,11 @@ func (f *fileRemote) ListConfigs(a helper.Annex) []helper.ConfigSetting {
 	}
 }
 
-func (f *fileRemote) Remove(a helper.Annex, key string) error {
-	err := os.Remove(f.getPath(key))
-	if errors.Is(err, os.ErrNotExist) {
-		err = nil
-	}
-	return err
-}
+// Statically ensure that the remote correctly implements the desired optional interfaces.
+var (
+	_ helper.HasExtensions  = (*fileRemote)(nil)
+	_ helper.HasListConfigs = (*fileRemote)(nil)
+)
 
 func main() {
 	helper.Run(&fileRemote{})
