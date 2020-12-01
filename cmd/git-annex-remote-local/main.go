@@ -1,5 +1,5 @@
-// Package main implements a simple file-based external special remote for git-annex. It is
-// meant as a demonstration of the usage of the helper package; in practice, git-annex's native
+// Command git-annex-remote-local is a simple file-based external special remote for git-annex. It
+// is meant as a demonstration of the usage of the helper package; in practice, git-annex's native
 // directory special remote should be used instead.
 package main
 
