@@ -1,4 +1,4 @@
-// Package helper implements the git-annex external special remote protocol. It can be used to
+// Package remote implements the git-annex external special remote protocol. It can be used to
 // create an external special remote without detailed knowledge of the git-annex wire protocol. It
 // supports the ASYNC and INFO protocol extensions.
 //
@@ -8,7 +8,7 @@
 //
 // See https://git-annex.branchable.com/design/external_special_remote_protocol/ for further
 // information regarding the underlying protocol and the semantics of its operations.
-package helper
+package remote
 
 import (
 	"bufio"
