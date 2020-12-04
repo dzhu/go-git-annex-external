@@ -37,6 +37,15 @@ const (
 	cmdWhereIs         = "WHEREIS"
 	cmdGetInfo         = "GETINFO"
 
+	// Export interface messages.
+	cmdExportSupported       = "EXPORTSUPPORTED"
+	cmdExport                = "EXPORT"
+	cmdCheckPresentExport    = "CHECKPRESENTEXPORT"
+	cmdTransferExport        = "TRANSFEREXPORT"
+	cmdRemoveExport          = "REMOVEEXPORT"
+	cmdRemoveExportDirectory = "REMOVEEXPORTDIRECTORY"
+	cmdRenameExport          = "RENAMEEXPORT"
+
 	dirStore    = "STORE"
 	dirRetrieve = "RETRIEVE"
 )
@@ -74,19 +83,26 @@ func responseSplit(f func(a *annexIO, r RemoteV1, s []string)) commandSpec {
 }
 
 var commandSpecs = map[string]commandSpec{
-	cmdInitRemote:      response0(initialize),
-	cmdPrepare:         response0(prepare),
-	cmdTransfer:        response3(transfer),
-	cmdCheckPresent:    response1(present),
-	cmdRemove:          response1(remove),
-	cmdExtensions:      responseSplit(extensions),
-	cmdListConfigs:     response0(listConfigs),
-	cmdGetCost:         response0(getCost),
-	cmdGetAvailability: response0(getAvailability),
-	cmdClaimURL:        response1(claimURL),
-	cmdCheckURL:        response1(checkURL),
-	cmdWhereIs:         response1(whereIs),
-	cmdGetInfo:         response0(getInfo),
+	cmdInitRemote:            response0(initialize),
+	cmdPrepare:               response0(prepare),
+	cmdTransfer:              response3(transfer),
+	cmdCheckPresent:          response1(present),
+	cmdRemove:                response1(remove),
+	cmdExtensions:            responseSplit(extensions),
+	cmdListConfigs:           response0(listConfigs),
+	cmdGetCost:               response0(getCost),
+	cmdGetAvailability:       response0(getAvailability),
+	cmdClaimURL:              response1(claimURL),
+	cmdCheckURL:              response1(checkURL),
+	cmdWhereIs:               response1(whereIs),
+	cmdGetInfo:               response0(getInfo),
+	cmdExportSupported:       response0(exportSupported),
+	cmdExport:                response1(export),
+	cmdCheckPresentExport:    response1(presentExport),
+	cmdTransferExport:        response3(transferExport),
+	cmdRemoveExport:          response1(removeExport),
+	cmdRemoveExportDirectory: response1(removeExportDirectory),
+	cmdRenameExport:          response3(renameExport),
 }
 
 var logger io.WriteCloser
@@ -229,7 +245,7 @@ func getJobNum(line string) int {
 }
 
 func runJob(lines lineIO, r RemoteV1) {
-	a := &annexIO{lines}
+	a := &annexIO{io: lines}
 	for line := lines.Recv(); line != ""; line = lines.Recv() {
 		procLine(a, r, line)
 	}

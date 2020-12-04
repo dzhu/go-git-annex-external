@@ -73,7 +73,8 @@ func (j *jobLineIO) Recv() string {
 }
 
 type annexIO struct {
-	io lineIO
+	io         lineIO
+	exportName string
 }
 
 func (a *annexIO) send(cmd string, args ...interface{}) {

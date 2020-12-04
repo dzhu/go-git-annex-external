@@ -15,6 +15,9 @@ import (
 const rootConfigName = "root"
 
 func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+		return err
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -37,6 +40,10 @@ type fileRemote struct {
 
 func (f *fileRemote) getPath(key string) string {
 	return filepath.Join(f.root, key)
+}
+
+func (f *fileRemote) getExportPath(name string) string {
+	return filepath.Join(f.root, name)
 }
 
 func (f *fileRemote) Init(a remote.Annex) error {
@@ -92,10 +99,50 @@ func (f *fileRemote) ListConfigs(a remote.Annex) []remote.ConfigSetting {
 	}
 }
 
+func (f *fileRemote) ExportSupported(a remote.Annex) bool {
+	return true
+}
+
+func (f *fileRemote) StoreExport(a remote.Annex, name, key, file string) error {
+	return copyFile(file, f.getExportPath(name))
+}
+
+func (f *fileRemote) RetrieveExport(a remote.Annex, name, key, file string) error {
+	return copyFile(f.getExportPath(name), file)
+}
+
+func (f *fileRemote) PresentExport(a remote.Annex, name, key string) (bool, error) {
+	switch _, err := os.Stat(f.getExportPath(name)); {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+func (f *fileRemote) RemoveExport(a remote.Annex, name, key string) error {
+	err := os.Remove(f.getExportPath(name))
+	if errors.Is(err, os.ErrNotExist) {
+		err = nil
+	}
+	return err
+}
+
+func (f *fileRemote) RemoveExportDirectory(a remote.Annex, directory string) error {
+	err := os.Remove(f.getExportPath(directory))
+	if errors.Is(err, os.ErrNotExist) {
+		err = nil
+	}
+	return err
+}
+
 // Statically ensure that the remote correctly implements the desired optional interfaces.
 var (
 	_ remote.HasExtensions  = (*fileRemote)(nil)
 	_ remote.HasListConfigs = (*fileRemote)(nil)
+	_ remote.HasExport      = (*fileRemote)(nil)
 )
 
 func main() {
