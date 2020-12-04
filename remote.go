@@ -41,6 +41,13 @@ const (
 	dirRetrieve = "RETRIEVE"
 )
 
+const (
+	// ExtInfo is the keyword of the protocol extension for info messages.
+	ExtInfo = "INFO"
+	// ExtAsync is the keyword of the protocol extension for asynchronous jobs.
+	ExtAsync = "ASYNC"
+)
+
 type commandSpec struct {
 	argCount int
 	response func(a *annexIO, r RemoteV1, args []string)

@@ -83,7 +83,7 @@ func (f *fileRemote) Remove(a remote.Annex, key string) error {
 }
 
 func (f *fileRemote) Extensions(a remote.Annex, es []string) []string {
-	return []string{"INFO", "ASYNC"}
+	return []string{remote.ExtInfo, remote.ExtAsync}
 }
 
 func (f *fileRemote) ListConfigs(a remote.Annex) []remote.ConfigSetting {
