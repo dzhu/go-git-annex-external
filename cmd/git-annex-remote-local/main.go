@@ -38,6 +38,10 @@ type fileRemote struct {
 	root string
 }
 
+func (f *fileRemote) getTempPath(key string) string {
+	return filepath.Join(f.root, "tmp", key)
+}
+
 func (f *fileRemote) getPath(key string) string {
 	return filepath.Join(f.root, key)
 }
@@ -62,7 +66,12 @@ func (f *fileRemote) Prepare(a remote.Annex) error {
 
 func (f *fileRemote) Store(a remote.Annex, key, file string) error {
 	a.Infof("copying %s -> %s", file, f.getPath(key))
-	return copyFile(file, f.getPath(key))
+	// Copy to a temp file first and rename, since the file must not show up as present until the
+	// transfer is complete.
+	if err := copyFile(file, f.getTempPath(key)); err != nil {
+		return err
+	}
+	return os.Rename(f.getTempPath(key), f.getPath(key))
 }
 
 func (f *fileRemote) Retrieve(a remote.Annex, key, file string) error {
