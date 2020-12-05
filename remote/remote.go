@@ -11,12 +11,12 @@
 package remote
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
+
+	"github.com/dzhu/go-git-annex-external/internal"
 )
 
 const (
@@ -57,52 +57,24 @@ const (
 	ExtAsync = "ASYNC"
 )
 
-type commandSpec struct {
-	argCount int
-	response func(a *annexIO, r RemoteV1, args []string)
+func response0(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1)) internal.CommandSpec {
+	return internal.CommandSpec{0, func(args []string) { f(a, r) }}
 }
 
-func response0(f func(a *annexIO, r RemoteV1)) commandSpec {
-	return commandSpec{0, func(a *annexIO, r RemoteV1, args []string) { f(a, r) }}
+func response1(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s string)) internal.CommandSpec {
+	return internal.CommandSpec{1, func(args []string) { f(a, r, args[0]) }}
 }
 
-func response1(f func(a *annexIO, r RemoteV1, s string)) commandSpec {
-	return commandSpec{1, func(a *annexIO, r RemoteV1, args []string) { f(a, r, args[0]) }}
-}
-
-func response3(f func(a *annexIO, r RemoteV1, s1, s2, s3 string)) commandSpec {
-	return commandSpec{
-		3, func(a *annexIO, r RemoteV1, args []string) { f(a, r, args[0], args[1], args[2]) },
+func response3(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s1, s2, s3 string)) internal.CommandSpec {
+	return internal.CommandSpec{
+		3, func(args []string) { f(a, r, args[0], args[1], args[2]) },
 	}
 }
 
-func responseSplit(f func(a *annexIO, r RemoteV1, s []string)) commandSpec {
-	return commandSpec{
-		1, func(a *annexIO, r RemoteV1, args []string) { f(a, r, strings.Split(args[0], " ")) },
+func responseSplit(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s []string)) internal.CommandSpec {
+	return internal.CommandSpec{
+		1, func(args []string) { f(a, r, strings.Split(args[0], " ")) },
 	}
-}
-
-var commandSpecs = map[string]commandSpec{
-	cmdInitRemote:            response0(initialize),
-	cmdPrepare:               response0(prepare),
-	cmdTransfer:              response3(transfer),
-	cmdCheckPresent:          response1(present),
-	cmdRemove:                response1(remove),
-	cmdExtensions:            responseSplit(extensions),
-	cmdListConfigs:           response0(listConfigs),
-	cmdGetCost:               response0(getCost),
-	cmdGetAvailability:       response0(getAvailability),
-	cmdClaimURL:              response1(claimURL),
-	cmdCheckURL:              response1(checkURL),
-	cmdWhereIs:               response1(whereIs),
-	cmdGetInfo:               response0(getInfo),
-	cmdExportSupported:       response0(exportSupported),
-	cmdExport:                response1(export),
-	cmdCheckPresentExport:    response1(presentExport),
-	cmdTransferExport:        response3(transferExport),
-	cmdRemoveExport:          response1(removeExport),
-	cmdRemoveExportDirectory: response1(removeExportDirectory),
-	cmdRenameExport:          response3(renameExport),
 }
 
 var logger io.WriteCloser
@@ -166,6 +138,14 @@ type RemoteV1 interface {
 	Remove(a Annex, key string) error
 }
 
+func startup(a *annexIO, r RemoteV1) {
+	a.send("VERSION 1")
+}
+
+func unsupported(a *annexIO, r RemoteV1) {
+	a.unsupported()
+}
+
 func initialize(a *annexIO, r RemoteV1) {
 	if err := r.Init(a); err != nil {
 		a.sendFailure(cmdInitRemote, err)
@@ -218,80 +198,35 @@ func remove(a *annexIO, r RemoteV1, key string) {
 	a.sendSuccess(cmdRemove, key)
 }
 
-func procLine(a *annexIO, r RemoteV1, line string) {
-	cmdAndArgs := strings.SplitN(line, " ", 2)
-	cmd := cmdAndArgs[0]
-
-	spec, ok := commandSpecs[cmd]
-	if !ok {
-		a.unsupported()
-		return
-	}
-	argsStr := ""
-	if len(cmdAndArgs) > 1 {
-		argsStr = cmdAndArgs[1]
-	}
-	args := strings.SplitN(argsStr, " ", spec.argCount)
-	spec.response(a, r, args)
-}
-
-func getJobNum(line string) int {
-	split := strings.SplitN(line, " ", 3)
-	if split[0] != "J" {
-		return 0
-	}
-	jobNum, _ := strconv.Atoi(split[1])
-	return jobNum
-}
-
-func runJob(lines lineIO, r RemoteV1) {
-	a := &annexIO{io: lines}
-	for line := lines.Recv(); line != ""; line = lines.Recv() {
-		procLine(a, r, line)
-	}
-}
-
-// RunWithStreams executes an external special remote with the provided input and output streams.
-func RunWithStreams(input io.Reader, output io.Writer, r RemoteV1) {
-	lines := &rawLineIO{
-		w: output,
-		s: bufio.NewScanner(input),
-	}
-	a := &annexIO{io: lines}
-	lines.Send("VERSION 1")
-	defer func() {
-		if p := recover(); p != nil {
-			a.Error(fmt.Sprintf("failed: %s", p))
-		}
-	}()
-
-	outLines := make(chan string)
-
-	go func() {
-		for l := range outLines {
-			Log("\x1b[32m[%8d] -> %s\x1b[m", os.Getpid(), l)
-			lines.Send(l)
-		}
-	}()
-
-	inChans := make(map[int]chan string)
-
-	for line := lines.Recv(); line != ""; line = lines.Recv() {
-		Log("\x1b[34m[%8d] <- %s\x1b[m", os.Getpid(), line)
-
-		jobNum := getJobNum(line)
-		ch, ok := inChans[jobNum]
-		if !ok {
-			ch = make(chan string)
-			inChans[jobNum] = ch
-			go runJob(&jobLineIO{ch, jobNum, outLines}, r)
-		}
-		ch <- line
-	}
-}
-
 // Run executes an external special remote as git-annex expects, reading from stdin and writing to
 // stdout.
 func Run(r RemoteV1) {
-	RunWithStreams(os.Stdin, os.Stdout, r)
+	internal.Run(func(lines internal.LineIO) map[string]internal.CommandSpec {
+		a := &annexIO{io: lines}
+
+		return map[string]internal.CommandSpec{
+			internal.StartupCmd:      response0(a, r, startup),
+			internal.UnsupportedCmd:  response0(a, r, unsupported),
+			cmdInitRemote:            response0(a, r, initialize),
+			cmdPrepare:               response0(a, r, prepare),
+			cmdTransfer:              response3(a, r, transfer),
+			cmdCheckPresent:          response1(a, r, present),
+			cmdRemove:                response1(a, r, remove),
+			cmdExtensions:            responseSplit(a, r, extensions),
+			cmdListConfigs:           response0(a, r, listConfigs),
+			cmdGetCost:               response0(a, r, getCost),
+			cmdGetAvailability:       response0(a, r, getAvailability),
+			cmdClaimURL:              response1(a, r, claimURL),
+			cmdCheckURL:              response1(a, r, checkURL),
+			cmdWhereIs:               response1(a, r, whereIs),
+			cmdGetInfo:               response0(a, r, getInfo),
+			cmdExportSupported:       response0(a, r, exportSupported),
+			cmdExport:                response1(a, r, export),
+			cmdCheckPresentExport:    response1(a, r, presentExport),
+			cmdTransferExport:        response3(a, r, transferExport),
+			cmdRemoveExport:          response1(a, r, removeExport),
+			cmdRemoveExportDirectory: response1(a, r, removeExportDirectory),
+			cmdRenameExport:          response3(a, r, renameExport),
+		}
+	})
 }

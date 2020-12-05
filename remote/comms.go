@@ -1,79 +1,15 @@
 package remote
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
+
+	"github.com/dzhu/go-git-annex-external/internal"
 )
 
-type lineIO interface {
-	Send(cmd string, args ...interface{})
-	Recv() string
-}
-
-func fmtLine(cmd string, args ...interface{}) string {
-	line := strings.TrimRight(fmt.Sprintln(append([]interface{}{cmd}, args...)...), "\n")
-	return strings.ReplaceAll(line, "\n", "\\n")
-}
-
-type rawLineIO struct {
-	w io.Writer
-	s *bufio.Scanner
-}
-
-func (r *rawLineIO) Send(cmd string, args ...interface{}) {
-	line := fmtLine(cmd, args...)
-	if _, err := fmt.Fprintln(r.w, line); err != nil {
-		panic(err)
-	}
-}
-
-func (r *rawLineIO) Recv() string {
-	switch {
-	case !r.s.Scan():
-		return ""
-	case r.s.Err() != nil:
-		panic(r.s.Err())
-	default:
-		return r.s.Text()
-	}
-}
-
-type jobLineIO struct {
-	input  <-chan string
-	num    int
-	output chan<- string
-}
-
-func (j *jobLineIO) needsJobPrefix() bool {
-	return j.num != 0
-}
-
-func (j *jobLineIO) Send(cmd string, args ...interface{}) {
-	if cmd != "ERROR" && j.needsJobPrefix() {
-		args = append([]interface{}{j.num, cmd}, args...)
-		cmd = "J"
-	}
-	j.output <- fmtLine(cmd, args...)
-}
-
-func (j *jobLineIO) Recv() string {
-	line := <-j.input
-	if line == "" || !j.needsJobPrefix() {
-		return line
-	}
-	prefix := fmt.Sprintf("J %d ", j.num)
-	rest := strings.TrimPrefix(line, prefix)
-	if line == rest {
-		panic(fmt.Sprintf("received line %q without correct prefix %q", line, prefix))
-	}
-	return rest
-}
-
 type annexIO struct {
-	io         lineIO
+	io         internal.LineIO
 	exportName string
 }
 
