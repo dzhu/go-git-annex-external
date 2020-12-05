@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/dzhu/go-git-annex-external/internal"
 )
@@ -56,26 +55,6 @@ const (
 	// ExtAsync is the keyword of the protocol extension for asynchronous jobs.
 	ExtAsync = "ASYNC"
 )
-
-func response0(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1)) internal.CommandSpec {
-	return internal.CommandSpec{0, func(args []string) { f(a, r) }}
-}
-
-func response1(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s string)) internal.CommandSpec {
-	return internal.CommandSpec{1, func(args []string) { f(a, r, args[0]) }}
-}
-
-func response3(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s1, s2, s3 string)) internal.CommandSpec {
-	return internal.CommandSpec{
-		3, func(args []string) { f(a, r, args[0], args[1], args[2]) },
-	}
-}
-
-func responseSplit(a *annexIO, r RemoteV1, f func(a *annexIO, r RemoteV1, s []string)) internal.CommandSpec {
-	return internal.CommandSpec{
-		1, func(args []string) { f(a, r, strings.Split(args[0], " ")) },
-	}
-}
 
 var logger io.WriteCloser
 
@@ -138,37 +117,33 @@ type RemoteV1 interface {
 	Remove(a Annex, key string) error
 }
 
-func startup(a *annexIO, r RemoteV1) {
+func (a *annexIO) startup() {
 	a.send("VERSION 1")
 }
 
-func unsupported(a *annexIO, r RemoteV1) {
-	a.unsupported()
-}
-
-func initialize(a *annexIO, r RemoteV1) {
-	if err := r.Init(a); err != nil {
+func (a *annexIO) initialize() {
+	if err := a.impl.Init(a); err != nil {
 		a.sendFailure(cmdInitRemote, err)
 		return
 	}
 	a.sendSuccess(cmdInitRemote)
 }
 
-func prepare(a *annexIO, r RemoteV1) {
-	if err := r.Prepare(a); err != nil {
+func (a *annexIO) prepare() {
+	if err := a.impl.Prepare(a); err != nil {
 		a.sendFailure(cmdPrepare, err)
 		return
 	}
 	a.sendSuccess(cmdPrepare)
 }
 
-func transfer(a *annexIO, r RemoteV1, dir, key, file string) {
+func (a *annexIO) transfer(dir, key, file string) {
 	var proc func(Annex, string, string) error
 	switch dir {
 	case dirRetrieve:
-		proc = r.Retrieve
+		proc = a.impl.Retrieve
 	case dirStore:
-		proc = r.Store
+		proc = a.impl.Store
 	default:
 		panic("unknown transfer direction " + dir)
 	}
@@ -179,8 +154,8 @@ func transfer(a *annexIO, r RemoteV1, dir, key, file string) {
 	a.sendSuccess(cmdTransfer, dir, key)
 }
 
-func present(a *annexIO, r RemoteV1, key string) {
-	switch present, err := r.Present(a, key); {
+func (a *annexIO) present(key string) {
+	switch present, err := a.impl.Present(a, key); {
 	case present:
 		a.sendSuccess(cmdCheckPresent, key)
 	case err != nil:
@@ -190,8 +165,8 @@ func present(a *annexIO, r RemoteV1, key string) {
 	}
 }
 
-func remove(a *annexIO, r RemoteV1, key string) {
-	if err := r.Remove(a, key); err != nil {
+func (a *annexIO) remove(key string) {
+	if err := a.impl.Remove(a, key); err != nil {
 		a.sendFailure(cmdRemove, key, err)
 		return
 	}
@@ -202,31 +177,31 @@ func remove(a *annexIO, r RemoteV1, key string) {
 // stdout.
 func Run(r RemoteV1) {
 	internal.Run(func(lines internal.LineIO) map[string]internal.CommandSpec {
-		a := &annexIO{io: lines}
+		a := &annexIO{io: lines, impl: r}
 
 		return map[string]internal.CommandSpec{
-			internal.StartupCmd:      response0(a, r, startup),
-			internal.UnsupportedCmd:  response0(a, r, unsupported),
-			cmdInitRemote:            response0(a, r, initialize),
-			cmdPrepare:               response0(a, r, prepare),
-			cmdTransfer:              response3(a, r, transfer),
-			cmdCheckPresent:          response1(a, r, present),
-			cmdRemove:                response1(a, r, remove),
-			cmdExtensions:            responseSplit(a, r, extensions),
-			cmdListConfigs:           response0(a, r, listConfigs),
-			cmdGetCost:               response0(a, r, getCost),
-			cmdGetAvailability:       response0(a, r, getAvailability),
-			cmdClaimURL:              response1(a, r, claimURL),
-			cmdCheckURL:              response1(a, r, checkURL),
-			cmdWhereIs:               response1(a, r, whereIs),
-			cmdGetInfo:               response0(a, r, getInfo),
-			cmdExportSupported:       response0(a, r, exportSupported),
-			cmdExport:                response1(a, r, export),
-			cmdCheckPresentExport:    response1(a, r, presentExport),
-			cmdTransferExport:        response3(a, r, transferExport),
-			cmdRemoveExport:          response1(a, r, removeExport),
-			cmdRemoveExportDirectory: response1(a, r, removeExportDirectory),
-			cmdRenameExport:          response3(a, r, renameExport),
+			internal.StartupCmd:      internal.Response0(a.startup),
+			internal.UnsupportedCmd:  internal.Response0(a.unsupported),
+			cmdInitRemote:            internal.Response0(a.initialize),
+			cmdPrepare:               internal.Response0(a.prepare),
+			cmdTransfer:              internal.Response3(a.transfer),
+			cmdCheckPresent:          internal.Response1(a.present),
+			cmdRemove:                internal.Response1(a.remove),
+			cmdExtensions:            internal.ResponseSplit(a.extensions),
+			cmdListConfigs:           internal.Response0(a.listConfigs),
+			cmdGetCost:               internal.Response0(a.getCost),
+			cmdGetAvailability:       internal.Response0(a.getAvailability),
+			cmdClaimURL:              internal.Response1(a.claimURL),
+			cmdCheckURL:              internal.Response1(a.checkURL),
+			cmdWhereIs:               internal.Response1(a.whereIs),
+			cmdGetInfo:               internal.Response0(a.getInfo),
+			cmdExportSupported:       internal.Response0(a.exportSupported),
+			cmdExport:                internal.Response1(a.export),
+			cmdCheckPresentExport:    internal.Response1(a.presentExport),
+			cmdTransferExport:        internal.Response3(a.transferExport),
+			cmdRemoveExport:          internal.Response1(a.removeExport),
+			cmdRemoveExportDirectory: internal.Response1(a.removeExportDirectory),
+			cmdRenameExport:          internal.Response3(a.renameExport),
 		}
 	})
 }

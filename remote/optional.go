@@ -11,8 +11,8 @@ type HasExtensions interface {
 	Extensions(a Annex, e []string) []string
 }
 
-func extensions(a *annexIO, r RemoteV1, e []string) {
-	h, ok := r.(HasExtensions)
+func (a *annexIO) extensions(e []string) {
+	h, ok := a.impl.(HasExtensions)
 	if !ok {
 		a.unsupported()
 		return
@@ -33,8 +33,8 @@ type HasListConfigs interface {
 	ListConfigs(a Annex) []ConfigSetting
 }
 
-func listConfigs(a *annexIO, r RemoteV1) {
-	h, ok := r.(HasListConfigs)
+func (a *annexIO) listConfigs() {
+	h, ok := a.impl.(HasListConfigs)
 	if !ok {
 		a.unsupported()
 		return
@@ -51,8 +51,8 @@ type HasGetCost interface {
 	GetCost(a Annex) int
 }
 
-func getCost(a *annexIO, r RemoteV1) {
-	h, ok := r.(HasGetCost)
+func (a *annexIO) getCost() {
+	h, ok := a.impl.(HasGetCost)
 	if !ok {
 		a.unsupported()
 		return
@@ -66,8 +66,8 @@ type HasGetAvailability interface {
 	GetAvailability(a Annex) string
 }
 
-func getAvailability(a *annexIO, r RemoteV1) {
-	h, ok := r.(HasGetAvailability)
+func (a *annexIO) getAvailability() {
+	h, ok := a.impl.(HasGetAvailability)
 	if !ok {
 		a.unsupported()
 		return
@@ -81,8 +81,8 @@ type HasClaimURL interface {
 	ClaimURL(a Annex, url string) bool
 }
 
-func claimURL(a *annexIO, r RemoteV1, url string) {
-	h, ok := r.(HasClaimURL)
+func (a *annexIO) claimURL(url string) {
+	h, ok := a.impl.(HasClaimURL)
 	if !ok {
 		a.unsupported()
 		return
@@ -108,8 +108,8 @@ type HasCheckURL interface {
 	CheckURL(a Annex, url string) ([]URLInfo, error)
 }
 
-func checkURL(a *annexIO, r RemoteV1, url string) {
-	h, ok := r.(HasCheckURL)
+func (a *annexIO) checkURL(url string) {
+	h, ok := a.impl.(HasCheckURL)
 	if !ok {
 		a.unsupported()
 		return
@@ -155,8 +155,8 @@ type HasWhereIs interface {
 	WhereIs(a Annex, url string) string
 }
 
-func whereIs(a *annexIO, r RemoteV1, key string) {
-	h, ok := r.(HasWhereIs)
+func (a *annexIO) whereIs(key string) {
+	h, ok := a.impl.(HasWhereIs)
 	if !ok {
 		a.unsupported()
 		return
@@ -181,8 +181,8 @@ type HasGetInfo interface {
 	GetInfo(a Annex) []InfoField
 }
 
-func getInfo(a *annexIO, r RemoteV1) {
-	h, ok := r.(HasGetInfo)
+func (a *annexIO) getInfo() {
+	h, ok := a.impl.(HasGetInfo)
 	if !ok {
 		a.unsupported()
 		return
@@ -210,8 +210,8 @@ type HasExport interface {
 	RemoveExport(a Annex, name, key string) error
 }
 
-func exportSupported(a *annexIO, r RemoteV1) {
-	h, ok := r.(HasExport)
+func (a *annexIO) exportSupported() {
+	h, ok := a.impl.(HasExport)
 	if !ok {
 		a.unsupported()
 		return
@@ -223,12 +223,12 @@ func exportSupported(a *annexIO, r RemoteV1) {
 	}
 }
 
-func export(a *annexIO, r RemoteV1, name string) {
+func (a *annexIO) export(name string) {
 	a.exportName = name
 }
 
-func presentExport(a *annexIO, r RemoteV1, key string) {
-	h, ok := r.(HasExport)
+func (a *annexIO) presentExport(key string) {
+	h, ok := a.impl.(HasExport)
 	if !ok {
 		a.unsupported()
 		return
@@ -243,8 +243,8 @@ func presentExport(a *annexIO, r RemoteV1, key string) {
 	}
 }
 
-func transferExport(a *annexIO, r RemoteV1, dir, key, file string) {
-	h, ok := r.(HasExport)
+func (a *annexIO) transferExport(dir, key, file string) {
+	h, ok := a.impl.(HasExport)
 	if !ok {
 		a.unsupported()
 		return
@@ -265,8 +265,8 @@ func transferExport(a *annexIO, r RemoteV1, dir, key, file string) {
 	a.sendSuccess(cmdTransfer, dir, key)
 }
 
-func removeExport(a *annexIO, r RemoteV1, key string) {
-	h, ok := r.(HasExport)
+func (a *annexIO) removeExport(key string) {
+	h, ok := a.impl.(HasExport)
 	if !ok {
 		a.unsupported()
 		return
@@ -284,8 +284,8 @@ type HasRemoveExportDirectory interface {
 	RemoveExportDirectory(a Annex, directory string) error
 }
 
-func removeExportDirectory(a *annexIO, r RemoteV1, directory string) {
-	h, ok := r.(HasRemoveExportDirectory)
+func (a *annexIO) removeExportDirectory(directory string) {
+	h, ok := a.impl.(HasRemoveExportDirectory)
 	if !ok {
 		a.unsupported()
 		return
@@ -303,8 +303,8 @@ type HasRenameExport interface {
 	RenameExport(a Annex, name, key, newName string) error
 }
 
-func renameExport(a *annexIO, r RemoteV1, name, key, newName string) {
-	h, ok := r.(HasRenameExport)
+func (a *annexIO) renameExport(name, key, newName string) {
+	h, ok := a.impl.(HasRenameExport)
 	if !ok {
 		a.unsupported()
 		return

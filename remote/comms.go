@@ -10,6 +10,7 @@ import (
 
 type annexIO struct {
 	io         internal.LineIO
+	impl       RemoteV1
 	exportName string
 }
 
