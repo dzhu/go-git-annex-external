@@ -1,3 +1,3 @@
-module github.com/dzhu/git-annex-remote
+module github.com/dzhu/go-git-annex-external
 
 go 1.15

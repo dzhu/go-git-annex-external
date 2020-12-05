@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	remote "github.com/dzhu/git-annex-remote"
+	"github.com/dzhu/go-git-annex-external/remote"
 )
 
 const rootConfigName = "root"
