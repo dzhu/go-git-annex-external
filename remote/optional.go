@@ -197,9 +197,6 @@ func (a *annexIO) getInfo() {
 // HasExport is the interface that a remote implementation must implement to support the simple
 // export interface.
 type HasExport interface {
-	// ExportSupported returns whether this remote supports exporting. It will generally always return
-	// true, but perhaps support might depend on, e.g., the current operating system.
-	ExportSupported(a Annex) bool
 	// Store associates the content of the given file with the given key in the remote.
 	StoreExport(a Annex, name, key, file string) error
 	// Retrieve places the content of the given key into the given file.
@@ -211,16 +208,11 @@ type HasExport interface {
 }
 
 func (a *annexIO) exportSupported() {
-	h, ok := a.impl.(HasExport)
-	if !ok {
-		a.unsupported()
+	if _, ok := a.impl.(HasExport); !ok {
+		a.sendFailure(cmdExportSupported)
 		return
 	}
-	if h.ExportSupported(a) {
-		a.sendSuccess(cmdExportSupported)
-	} else {
-		a.sendFailure(cmdExportSupported)
-	}
+	a.sendSuccess(cmdExportSupported)
 }
 
 func (a *annexIO) export(name string) {

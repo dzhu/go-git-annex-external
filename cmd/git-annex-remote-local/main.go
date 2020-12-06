@@ -108,10 +108,6 @@ func (f *fileRemote) ListConfigs(a remote.Annex) []remote.ConfigSetting {
 	}
 }
 
-func (f *fileRemote) ExportSupported(a remote.Annex) bool {
-	return true
-}
-
 func (f *fileRemote) StoreExport(a remote.Annex, name, key, file string) error {
 	return copyFile(file, f.getExportPath(name))
 }
