@@ -11,10 +11,6 @@
 package remote
 
 import (
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/dzhu/go-git-annex-external/internal"
 )
 
@@ -55,20 +51,6 @@ const (
 	// ExtAsync is the keyword of the protocol extension for asynchronous jobs.
 	ExtAsync = "ASYNC"
 )
-
-var logger io.WriteCloser
-
-func init() {
-	var err error
-	logger, err = os.OpenFile("/tmp/remote.log", os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func Log(format string, args ...interface{}) {
-	fmt.Fprintf(logger, format+"\n", args...)
-}
 
 // Annex allows external special remote implementations to send requests to git-annex.
 type Annex interface {
